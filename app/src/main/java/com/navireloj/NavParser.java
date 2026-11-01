@@ -47,19 +47,51 @@ public final class NavParser {
                 .trim();
     }
 
+    // "... hacia X", "... con dirección a X", "... en dirección a X", "... por X", "onto X"
     private static final Pattern STREET_AFTER = Pattern.compile(
-            "^.*?\\b(?:hacia|por|en dirección a|onto|toward|towards|on)\\s+(.+)$",
+            "^.*?(?:\\b(?:con|en)\\s+)?\\b(?:hacia|direcci[oó]n\\s+a|por|onto|toward|towards)\\s+(.+)$",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
+    // "2.ª salida", "la 2a salida", "segunda salida", "exit 12"
+    private static final Pattern EXIT_NUM = Pattern.compile(
+            "(\\d+)\\s*\\.?\\s*[ªaº°]?\\s*salida|salida\\s+(\\d+)|exit\\s+(\\d+)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    /** Solo el nombre de la calle, o "" si la indicación no nombra ninguna. */
+    public static String streetOnly(String instruction) {
+        Matcher m = STREET_AFTER.matcher(clean(instruction));
+        if (!m.matches()) return "";
+        return trimPunct(m.group(1));
+    }
+
     /**
-     * Texto corto para el reloj: si la indicación es "Girá a la izquierda hacia
-     * Av. Corrientes", devuelve solo "Av. Corrientes" (la flecha ya dice el giro).
+     * Texto corto para el reloj: la flecha ya dice el giro, así que queda la
+     * calle ("Pedro Lozano"). En rotondas y salidas agrega el número de salida
+     * ("2.ª salida · Pedro Lozano").
      */
     public static String shortInstruction(String instruction) {
+        return shortInstruction(instruction, "");
+    }
+
+    public static String shortInstruction(String instruction, String dirCode) {
         String s = clean(instruction);
-        Matcher m = STREET_AFTER.matcher(s);
-        if (m.matches() && !m.group(1).trim().isEmpty()) return m.group(1).trim();
-        return s;
+        String street = streetOnly(s);
+        if ("roundabout".equals(dirCode) || "exit".equals(dirCode)) {
+            Matcher m = EXIT_NUM.matcher(s);
+            String exit = "";
+            if (m.find()) {
+                String n = m.group(1) != null ? m.group(1) : m.group(2) != null ? m.group(2) : m.group(3);
+                exit = "roundabout".equals(dirCode) ? n + ".ª salida" : "Salida " + n;
+            }
+            if (!exit.isEmpty() && !street.isEmpty()) return exit + " · " + street;
+            if (!exit.isEmpty()) return exit;
+        }
+        if (!street.isEmpty()) return street;
+        return trimPunct(s);
+    }
+
+    private static String trimPunct(String s) {
+        return s.replaceAll("[\\s.,;:]+$", "").trim();
     }
 
     /**

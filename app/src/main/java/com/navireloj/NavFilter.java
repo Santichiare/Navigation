@@ -152,11 +152,8 @@ public final class NavFilter {
         dir = NavParser.dirCode(full);
         if (dir.isEmpty()) dir = NavParser.dirCode(extra);
         dist = d;
-        String fullInstruction = NavParser.withoutDistances(full);
-        // En rotondas y salidas se deja el texto completo ("tomá la 2.ª salida")
-        instruction = ("roundabout".equals(dir) || "exit".equals(dir))
-                ? fullInstruction
-                : NavParser.shortInstruction(fullInstruction);
+        // Solo la calle (la flecha ya indica el giro); en rotondas, "2.ª salida · calle"
+        instruction = NavParser.shortInstruction(NavParser.withoutDistances(full), dir);
         eta = sub;
         // Distancia hasta el destino: suele venir junto a la hora de llegada
         // ("12 min · 3,4 km · 23:45")
