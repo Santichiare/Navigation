@@ -33,7 +33,9 @@ public final class Notifier implements NavFilter.AlertListener {
         Context app = context.getApplicationContext();
         if (instance == null) instance = new Notifier(app);
         NavFilter.setAlertListener(instance);
-        NavFilter.setSettings(isNotifyEnabled(app), isVibrateEnabled(app));
+        // El aviso breve quedó descartado (el reloj muestra la notificación demasiado tiempo)
+        NavFilter.setSettings(false, isVibrateEnabled(app));
+        NavFilter.setScreenMode(getScreenMode(app));
     }
 
     private Notifier(Context ctx) {
@@ -43,17 +45,26 @@ public final class Notifier implements NavFilter.AlertListener {
     // ---- ajustes ----
 
     static boolean isNotifyEnabled(Context c) {
-        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("notify", true);
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("notify", false);
     }
 
     static boolean isVibrateEnabled(Context c) {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("vibrate", true);
     }
 
+    static String getScreenMode(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("screen", "always");
+    }
+
+    static void saveScreenMode(Context c, String mode) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("screen", mode).apply();
+        NavFilter.setScreenMode(mode);
+    }
+
     static void save(Context c, boolean notify, boolean vibrate) {
         SharedPreferences.Editor e = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
         e.putBoolean("notify", notify).putBoolean("vibrate", vibrate).apply();
-        NavFilter.setSettings(notify, vibrate);
+        NavFilter.setSettings(false, vibrate);
     }
 
     // ---- aviso ----

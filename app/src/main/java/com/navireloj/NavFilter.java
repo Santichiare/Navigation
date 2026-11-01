@@ -24,6 +24,12 @@ public final class NavFilter {
     private static AlertListener alertListener = null;
     private static boolean notifyEnabled = true;
     private static boolean vibrateEnabled = true;
+    private static String screenMode = "always";
+
+    /** "always" (siempre activa, se atenúa) o "auto" (se apaga sola). */
+    public static synchronized void setScreenMode(String mode) {
+        screenMode = "auto".equals(mode) ? "auto" : "always";
+    }
 
     public static synchronized void setAlertListener(AlertListener l) {
         alertListener = l;
@@ -184,6 +190,7 @@ public final class NavFilter {
                 + ",\"age\":" + age
                 + ",\"notify\":" + notifyEnabled
                 + ",\"vibrate\":" + vibrateEnabled
+                + ",\"screen\":" + quote(screenMode)
                 + "}";
     }
 

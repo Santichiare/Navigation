@@ -11,6 +11,8 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -42,8 +44,7 @@ public class MainActivity extends Activity {
         TextView intro = new TextView(this);
         intro.setText("Lee las indicaciones de Google Maps y se las pasa a la app NaviReloj "
                 + "del reloj, que muestra la flecha y la distancia en vivo.\n\n"
-                + "En la app Zepp: desactivá Google Maps en Alertas de apps y "
-                + "activá NaviReloj (para el aviso breve).");
+                + "En la app Zepp, desactivá Google Maps en Alertas de apps.");
         intro.setPadding(0, dp(8), 0, dp(16));
         col.addView(intro);
 
@@ -55,17 +56,7 @@ public class MainActivity extends Activity {
         col.addView(button("1. Dar acceso a notificaciones", v ->
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
 
-        col.addView(button("2. Permitir avisos (para el aviso breve)", v -> {
-            if (Build.VERSION.SDK_INT >= 33) {
-                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
-            } else {
-                Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                i.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
-                startActivity(i);
-            }
-        }));
-
-        col.addView(button("3. Quitar restricción de batería", v ->
+        col.addView(button("2. Quitar restricción de batería", v ->
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))));
 
         TextView optTitle = new TextView(this);
@@ -73,20 +64,35 @@ public class MainActivity extends Activity {
         optTitle.setTypeface(Typeface.DEFAULT_BOLD);
         col.addView(optTitle);
 
-        final Switch notifySw = new Switch(this);
-        notifySw.setText("Aviso breve en el reloj\n(prende la pantalla 1 s en cada aviso)");
-        notifySw.setChecked(Notifier.isNotifyEnabled(this));
-        col.addView(notifySw);
+        TextView modeLabel = new TextView(this);
+        modeLabel.setText("Pantalla del reloj durante la navegación:");
+        modeLabel.setPadding(0, dp(8), 0, 0);
+        col.addView(modeLabel);
+
+        RadioGroup modeGroup = new RadioGroup(this);
+        RadioButton always = new RadioButton(this);
+        always.setId(View.generateViewId());
+        always.setText("Siempre activa: no se apaga al bajar la muñeca, a los 10 s baja "
+                + "el brillo al mínimo y en cada aviso vuelve el brillo y vibra. "
+                + "Tapándola con la mano se apaga.");
+        RadioButton auto = new RadioButton(this);
+        auto.setId(View.generateViewId());
+        auto.setText("Normal: la pantalla se apaga sola a los pocos segundos. "
+                + "Mirás el reloj cuando querés (no avisa de los giros).");
+        modeGroup.addView(always);
+        modeGroup.addView(auto);
+        modeGroup.check("auto".equals(Notifier.getScreenMode(this)) ? auto.getId() : always.getId());
+        modeGroup.setOnCheckedChangeListener((g, id) ->
+                Notifier.saveScreenMode(this, id == auto.getId() ? "auto" : "always"));
+        col.addView(modeGroup);
 
         final Switch vibrateSw = new Switch(this);
-        vibrateSw.setText("Vibración de la app del reloj\n(cuando la estás mirando)");
+        vibrateSw.setText("Vibrar en los avisos");
         vibrateSw.setChecked(Notifier.isVibrateEnabled(this));
-        col.addView(vibrateSw);
-
-        notifySw.setOnCheckedChangeListener((b, on) ->
-                Notifier.save(this, on, vibrateSw.isChecked()));
+        vibrateSw.setPadding(0, dp(8), 0, 0);
         vibrateSw.setOnCheckedChangeListener((b, on) ->
-                Notifier.save(this, notifySw.isChecked(), on));
+                Notifier.save(this, Notifier.isNotifyEnabled(this), on));
+        col.addView(vibrateSw);
 
         col.addView(button("Probar con el reloj (simulación de 1 minuto)", v -> simulate()));
 
