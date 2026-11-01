@@ -1,0 +1,14 @@
+{
+  "name": "navireloj-watch",
+  "version": "0.1.0",
+  "description": "App del reloj de NaviReloj (Zepp OS)",
+  "main": "app.js",
+  "private": true,
+  "license": "MIT",
+  "devDependencies": {
+    "@zeppos/device-types": "^3.0.0"
+  },
+  "dependencies": {
+    "@zeppos/zml": "0.0.41"
+  }
+}
