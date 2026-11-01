@@ -171,8 +171,8 @@ public final class NavParser {
     /** "200 m", "1,2 km". */
     public static String formatDistance(int meters) {
         if (meters < 0) return "";
-        // Cerca del giro, de a 10 m; más lejos, de a 50 m (cambia menos seguido)
-        if (meters < 200) {
+        // Cerca del giro (menos de 100 m), de a 10 m; más lejos, de a 50 m
+        if (meters < 100) {
             int rounded = (int) (Math.round(meters / 10.0) * 10);
             return rounded + " m";
         }
