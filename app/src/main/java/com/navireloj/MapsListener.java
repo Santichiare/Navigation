@@ -36,10 +36,46 @@ public class MapsListener extends NotificationListenerService {
         String text = str(e.getCharSequence(Notification.EXTRA_TEXT));
         String sub = str(e.getCharSequence(Notification.EXTRA_SUB_TEXT));
 
+        // Otros campos donde algunas versiones de Maps ponen la distancia
+        String extra = str(e.getCharSequence(Notification.EXTRA_BIG_TEXT))
+                + " " + str(e.getCharSequence(Notification.EXTRA_INFO_TEXT))
+                + " " + str(e.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
+                + " " + str(e.getCharSequence(Notification.EXTRA_TITLE_BIG))
+                + " " + str(n.tickerText);
+
         NavServer.start(); // por si el sistema lo cerró
-        if (NavFilter.onMapsUpdate(title, text, sub)) {
-            DebugLog.add(this, title + " | " + text + " | " + sub);
+        if (NavFilter.onMapsUpdate(title, text, sub, extra)) {
+            DebugLog.add(this, dumpAll(n, e));
         }
+    }
+
+    /** Todos los campos de texto de la notificación, para diagnóstico. */
+    private static String dumpAll(Notification n, Bundle e) {
+        StringBuilder b = new StringBuilder();
+        for (String key : e.keySet()) {
+            Object v;
+            try {
+                v = e.get(key);
+            } catch (Exception ex) {
+                continue;
+            }
+            if (v instanceof CharSequence || v instanceof Number || v instanceof Boolean) {
+                String s = v.toString();
+                if (s.isEmpty()) continue;
+                if (b.length() > 0) b.append(" | ");
+                b.append(key.replace("android.", "")).append('=').append(s);
+            } else if (v instanceof CharSequence[]) {
+                CharSequence[] arr = (CharSequence[]) v;
+                if (arr.length == 0) continue;
+                if (b.length() > 0) b.append(" | ");
+                b.append(key.replace("android.", "")).append("=[");
+                for (int i = 0; i < arr.length; i++) b.append(i > 0 ? "; " : "").append(arr[i]);
+                b.append(']');
+            }
+        }
+        if (n.tickerText != null) b.append(" | ticker=").append(n.tickerText);
+        if (n.category != null) b.append(" | cat=").append(n.category);
+        return b.toString();
     }
 
     @Override

@@ -53,11 +53,21 @@ public final class NavFilter {
      * @return true si el contenido cambió (sirve para el registro de diagnóstico)
      */
     public static synchronized boolean onMapsUpdate(String title, String text, String subText) {
+        return onMapsUpdate(title, text, subText, "");
+    }
+
+    /**
+     * @param extraText otros campos de la notificación (texto largo, ticker...).
+     *                  Solo se usan para buscar la distancia y la dirección si
+     *                  no aparecen en el título ni en el texto.
+     */
+    public static synchronized boolean onMapsUpdate(String title, String text, String subText, String extraText) {
         title = NavParser.clean(title);
         text = NavParser.clean(text);
         String sub = NavParser.clean(subText);
+        String extra = NavParser.clean(extraText);
 
-        String raw = title + " | " + text + " | " + sub;
+        String raw = title + " | " + text + " | " + sub + " | " + extra;
         if (raw.equals(lastRaw)) return false;
         lastRaw = raw;
 
@@ -66,6 +76,7 @@ public final class NavFilter {
 
         int d = NavParser.parseMeters(title);
         if (d < 0) d = NavParser.parseMeters(text);
+        if (d < 0) d = NavParser.parseMeters(extra);
 
         boolean alert = false;
 
@@ -94,6 +105,7 @@ public final class NavFilter {
         String full = title + " " + text;
         active = true;
         dir = NavParser.dirCode(full);
+        if (dir.isEmpty()) dir = NavParser.dirCode(extra);
         dist = d;
         String fullInstruction = NavParser.withoutDistances(full);
         // En rotondas y salidas se deja el texto completo ("tomá la 2.ª salida")
