@@ -3,6 +3,8 @@
 
     <!-- Necesario para el servidor local (solo 127.0.0.1) que consulta el reloj -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Para el aviso breve que prende la pantalla del reloj -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"

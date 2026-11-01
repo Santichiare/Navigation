@@ -16,6 +16,7 @@ public class MapsListener extends NotificationListenerService {
 
     @Override
     public void onListenerConnected() {
+        Notifier.install(this);
         NavServer.start();
     }
 

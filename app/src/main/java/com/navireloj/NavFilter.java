@@ -16,6 +16,24 @@ public final class NavFilter {
 
     private NavFilter() {}
 
+    /** Recibe cada aviso (giro nuevo o umbral cruzado). Lo usa el celu para mandar el aviso breve. */
+    public interface AlertListener {
+        void onAlert(String title, String body);
+    }
+
+    private static AlertListener alertListener = null;
+    private static boolean notifyEnabled = true;
+    private static boolean vibrateEnabled = true;
+
+    public static synchronized void setAlertListener(AlertListener l) {
+        alertListener = l;
+    }
+
+    public static synchronized void setSettings(boolean notify, boolean vibrate) {
+        notifyEnabled = notify;
+        vibrateEnabled = vibrate;
+    }
+
     /** Umbrales en metros en los que vibra el reloj. */
     static final int[] THRESHOLDS = {500, 200, 50};
 
@@ -119,7 +137,19 @@ public final class NavFilter {
         // ("12 min · 3,4 km · 23:45")
         remaining = NavParser.parseMeters(sub);
         updatedAt = System.currentTimeMillis();
-        if (alert) seq++;
+        if (alert) {
+            seq++;
+            if (notifyEnabled && alertListener != null) {
+                String arrow = NavParser.direction(full);
+                String distText = (dist >= 0 && dist <= 50) ? "YA" : NavParser.formatDistance(dist);
+                String t = (arrow + (arrow.isEmpty() || distText.isEmpty() ? "" : " · ") + distText).trim();
+                if (t.isEmpty()) t = "Navegación";
+                try {
+                    alertListener.onAlert(t, instruction);
+                } catch (Exception ignored) {
+                }
+            }
+        }
         return true;
     }
 
@@ -152,6 +182,8 @@ public final class NavFilter {
                 + ",\"remaining\":" + remaining
                 + ",\"remainingText\":" + quote(NavParser.formatDistance(remaining))
                 + ",\"age\":" + age
+                + ",\"notify\":" + notifyEnabled
+                + ",\"vibrate\":" + vibrateEnabled
                 + "}";
     }
 
