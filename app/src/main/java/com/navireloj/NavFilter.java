@@ -1,20 +1,16 @@
 package com.navireloj;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.content.Context;
-
 import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Decide cuándo vale la pena avisar al reloj.
+ * Guarda la indicación actual de Google Maps y decide cuándo el reloj
+ * tiene que vibrar. Es Java puro (sin Android) para poder probarlo.
  *
- * Reglas:
- *  - Cuando Maps pasa a una maniobra nueva: un aviso.
- *  - Cuando la distancia cruza 500 m, 200 m y 50 m: un aviso en cada umbral.
- *  - Cualquier otra actualización de Maps (230 m, 220 m, 210 m...) se ignora.
+ * El reloj consulta este estado cada segundo. La distancia se actualiza
+ * siempre, pero el contador "seq" (que hace vibrar al reloj) solo sube:
+ *  - cuando Maps pasa a una maniobra nueva, y
+ *  - cuando la distancia cruza 500 m, 200 m y 50 m.
  */
 public final class NavFilter {
 
@@ -23,35 +19,53 @@ public final class NavFilter {
     /** Umbrales en metros en los que vibra el reloj. */
     static final int[] THRESHOLDS = {500, 200, 50};
 
-    static final String CHANNEL_ID = "indicaciones";
-    static final int NOTIF_ID = 4242;
-
+    // Estado interno del filtro
     private static String currentKey = null;
     private static int lastDistance = -1;
     private static String lastRaw = null;
     private static final Set<Integer> fired = new HashSet<>();
 
+    // Estado que se publica al reloj
+    private static boolean active = false;
+    private static int seq = 0;
+    private static String dir = "";
+    private static int dist = -1;
+    private static String instruction = "";
+    private static String eta = "";
+    private static long updatedAt = 0;
+
+    /** Vuelve a empezar (por ejemplo, antes de una simulación). */
     public static synchronized void reset() {
         currentKey = null;
         lastDistance = -1;
         lastRaw = null;
         fired.clear();
+        active = false;
+        dir = "";
+        dist = -1;
+        instruction = "";
+        eta = "";
+        updatedAt = System.currentTimeMillis();
     }
 
-    public static synchronized void onMapsUpdate(Context ctx, String title, String text) {
+    /**
+     * Procesa una notificación de navegación de Maps.
+     * @return true si el contenido cambió (sirve para el registro de diagnóstico)
+     */
+    public static synchronized boolean onMapsUpdate(String title, String text, String subText) {
         title = NavParser.clean(title);
         text = NavParser.clean(text);
+        String sub = NavParser.clean(subText);
 
-        String raw = title + " | " + text;
-        if (raw.equals(lastRaw)) return;
+        String raw = title + " | " + text + " | " + sub;
+        if (raw.equals(lastRaw)) return false;
         lastRaw = raw;
-        DebugLog.add(ctx, raw);
 
         String key = NavParser.stepKey(title, text);
-        if (key.isEmpty()) return;
+        if (key.isEmpty()) return true;
 
-        int dist = NavParser.parseMeters(title);
-        if (dist < 0) dist = NavParser.parseMeters(text);
+        int d = NavParser.parseMeters(title);
+        if (d < 0) d = NavParser.parseMeters(text);
 
         boolean alert = false;
 
@@ -59,82 +73,85 @@ public final class NavFilter {
             // Maniobra nueva
             currentKey = key;
             fired.clear();
-            markReached(dist);
+            markReached(d);
             alert = true;
-        } else if (dist >= 0) {
+        } else if (d >= 0) {
             // Si la distancia sube mucho, probablemente recalculó la ruta
-            if (lastDistance >= 0 && dist > lastDistance + 150) {
+            if (lastDistance >= 0 && d > lastDistance + 150) {
                 fired.clear();
-                markReached(dist);
+                markReached(d);
             }
             for (int t : THRESHOLDS) {
-                if (dist <= t && !fired.contains(t)) {
+                if (d <= t && !fired.contains(t)) {
                     alert = true;
                     break;
                 }
             }
-            if (alert) markReached(dist);
+            if (alert) markReached(d);
         }
+        if (d >= 0) lastDistance = d;
 
-        if (dist >= 0) lastDistance = dist;
-
-        if (alert) post(ctx, title, text, dist);
+        String full = title + " " + text;
+        active = true;
+        dir = NavParser.dirCode(full);
+        dist = d;
+        String fullInstruction = NavParser.withoutDistances(full);
+        // En rotondas y salidas se deja el texto completo ("tomá la 2.ª salida")
+        instruction = ("roundabout".equals(dir) || "exit".equals(dir))
+                ? fullInstruction
+                : NavParser.shortInstruction(fullInstruction);
+        eta = sub;
+        updatedAt = System.currentTimeMillis();
+        if (alert) seq++;
+        return true;
     }
 
-    public static synchronized void onNavEnded(Context ctx) {
+    /** Maps cerró la navegación. */
+    public static synchronized void onNavEnded() {
         reset();
-        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
-        if (nm != null) nm.cancel(NOTIF_ID);
     }
 
     /** Marca como ya avisados todos los umbrales iguales o mayores a la distancia actual. */
-    private static void markReached(int dist) {
-        if (dist < 0) return;
+    private static void markReached(int d) {
+        if (d < 0) return;
         for (int t : THRESHOLDS) {
-            if (t >= dist) fired.add(t);
+            if (t >= d) fired.add(t);
         }
     }
 
-    private static void post(Context ctx, String title, String text, int dist) {
-        String full = title + " " + text;
-        String dir = NavParser.direction(full);
-
-        String distPart;
-        if (dist >= 0 && dist <= 50) distPart = "YA";
-        else distPart = NavParser.formatDistance(dist);
-
-        StringBuilder head = new StringBuilder();
-        if (!dir.isEmpty()) head.append(dir);
-        if (!distPart.isEmpty()) {
-            if (head.length() > 0) head.append(" · ");
-            head.append(distPart);
-        }
-        if (head.length() == 0) head.append("Navegación");
-
-        String body = NavParser.withoutDistances(full);
-
-        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
-        if (nm == null) return;
-        ensureChannel(nm);
-
-        Notification n = new Notification.Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_map)
-                .setContentTitle(head.toString())
-                .setContentText(body)
-                .setStyle(new Notification.BigTextStyle().bigText(body))
-                .setAutoCancel(true)
-                .setShowWhen(false)
-                .build();
-
-        nm.notify(NOTIF_ID, n);
+    /** Estado actual en JSON, tal como lo lee el reloj. */
+    public static synchronized String toJson() {
+        String distText = (dist >= 0 && dist <= 50) ? "YA" : NavParser.formatDistance(dist);
+        long age = updatedAt == 0 ? -1 : System.currentTimeMillis() - updatedAt;
+        return "{"
+                + "\"active\":" + active
+                + ",\"seq\":" + seq
+                + ",\"dir\":" + quote(dir)
+                + ",\"label\":" + quote(NavParser.dirLabel(dir))
+                + ",\"dist\":" + dist
+                + ",\"distText\":" + quote(distText)
+                + ",\"instruction\":" + quote(instruction)
+                + ",\"eta\":" + quote(eta)
+                + ",\"age\":" + age
+                + "}";
     }
 
-    static void ensureChannel(NotificationManager nm) {
-        if (nm.getNotificationChannel(CHANNEL_ID) != null) return;
-        NotificationChannel ch = new NotificationChannel(
-                CHANNEL_ID, "Indicaciones para el reloj", NotificationManager.IMPORTANCE_HIGH);
-        ch.setDescription("Avisos filtrados de Google Maps que se mandan al reloj");
-        ch.enableVibration(true);
-        nm.createNotificationChannel(ch);
+    static String quote(String s) {
+        if (s == null) s = "";
+        StringBuilder b = new StringBuilder("\"");
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': b.append("\\\""); break;
+                case '\\': b.append("\\\\"); break;
+                case '\n': b.append("\\n"); break;
+                case '\r': b.append("\\r"); break;
+                case '\t': b.append("\\t"); break;
+                default:
+                    if (c < 0x20) b.append(String.format("\\u%04x", (int) c));
+                    else b.append(c);
+            }
+        }
+        return b.append('"').toString();
     }
 }

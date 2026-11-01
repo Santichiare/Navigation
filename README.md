@@ -1,60 +1,97 @@
 # NaviReloj
 
-Manda al reloj Amazfit solo las indicaciones importantes de Google Maps, en vez de una notificación cada pocos metros.
+Indicaciones de Google Maps en una app propia del reloj Amazfit (hecha para el Active 3 Premium), sin el spam de notificaciones.
 
-**Cuándo vibra el reloj:**
-- Cuando Maps pasa a una maniobra nueva (te avisa el próximo giro).
-- A los 500 m, 200 m y 50 m de cada giro (a los 50 m dice "YA").
-- Nada más. Las actualizaciones intermedias de Maps se ignoran.
+En el reloj ves una flecha grande, la distancia actualizándose en vivo y la calle. Vibra solo:
+- cuando Maps pasa a una maniobra nueva,
+- a los 500 m, 200 m y 50 m de cada giro (a los 50 m vibra dos veces y dice "YA").
 
-Ejemplo de lo que ves en el reloj: `← IZQUIERDA · 200 m` / `Girá a la izquierda hacia Av. Corrientes`
+## Cómo funciona
 
----
+```
+Google Maps ──notificación──▶ NaviReloj (celu) ──127.0.0.1:27380──▶ Zepp (parte de la app del reloj) ──Bluetooth──▶ NaviReloj (reloj)
+```
 
-## 1. Subir el proyecto a GitHub
-
-1. Entrá a [github.com](https://github.com), tocá **New** (repositorio nuevo), ponele de nombre `NaviReloj`. Puede ser privado. Tocá **Create repository**.
-2. En la página del repo vacío, tocá el link **uploading an existing file**.
-3. Arrastrá **todo el contenido** de la carpeta `NaviReloj` (no la carpeta en sí, sino lo que hay adentro), incluida la carpeta `.github`.
-   - En Mac, `.github` está oculta en Finder: apretá `Cmd + Shift + .` para verla.
-4. Tocá **Commit changes**.
-
-## 2. Descargar el APK
-
-1. Andá a la pestaña **Actions** del repo. Vas a ver "Compilar APK" corriendo (tarda unos 3–5 minutos).
-2. Cuando aparezca el tilde verde ✔, entrá a esa ejecución.
-3. Abajo, en **Artifacts**, descargá **NaviReloj**. Es un .zip con `NaviReloj.apk` adentro.
-
-Si sale una cruz roja ✖, entrá a la ejecución, copiá el error y pasáselo a Claude.
-
-## 3. Instalar en el celular
-
-1. Pasá `NaviReloj.apk` al celu (cable, Drive, WhatsApp a vos mismo, etc.) y abrilo. Android te va a pedir permiso para instalar apps desconocidas: aceptá.
-2. **Android 13 o superior:** antes de dar el acceso a notificaciones, andá a *Ajustes → Apps → NaviReloj*, tocá los tres puntitos ⋮ arriba a la derecha y elegí **Permitir configuración restringida**. Sin esto, Android no te deja activar el acceso a notificaciones en apps instaladas a mano.
-3. Abrí NaviReloj y tocá los tres botones en orden:
-   1. Dar acceso a notificaciones → activá NaviReloj.
-   2. Permitir que muestre avisos.
-   3. Quitar restricción de batería → buscá NaviReloj y poné "Sin restricciones".
-
-## 4. Configurar Zepp
-
-En la app Zepp: *Perfil → tu reloj → Notificaciones / Alertas de apps*:
-- **Desactivá** Google Maps.
-- **Activá** NaviReloj.
-
-## 5. Probar
-
-- Tocá **Probar en el reloj (simulación de 30 s)**. Te deberían llegar 6 avisos al reloj en medio minuto.
-- Después probá con una navegación real en Google Maps.
-
-## Si algo no anda bien con Maps real
-
-La app guarda los últimos textos que recibió de Google Maps (abajo de todo en la pantalla). Mantené apretado el texto para copiarlo y pasáselo a Claude: con eso se ajusta el filtro al formato exacto que usa tu Maps.
+- `app/` → app de Android. Lee las notificaciones de Maps y deja la indicación actual en un mini servidor que solo es accesible desde el mismo celular.
+- `reloj/` → app del reloj (Zepp OS). Una parte corre dentro de la app Zepp del celu, consulta ese servidor cada segundo y le pasa los datos al reloj.
 
 ---
 
-### Para modificar la app
+## Parte 1: app del celular
 
-- La lógica de cuándo avisar está en `app/src/main/java/com/navireloj/NavFilter.java` (los umbrales están en `THRESHOLDS`).
-- Cómo se interpretan las distancias y las flechas está en `NavParser.java`.
-- Cada vez que subas cambios a GitHub se compila un APK nuevo. Se instala encima del anterior sin desinstalar.
+### Actualizarla en GitHub
+
+Subí a tu repo las carpetas `app` y `reloj` (arrastrándolas en **Add file → Upload files**) y tocá **Commit changes**. Se reemplazan los archivos viejos. La carpeta `.github` ya la tenés, no hace falta volver a subirla.
+
+### Descargar e instalar
+
+1. En **Actions**, esperá el tilde verde ✔, entrá a la ejecución y descargá **NaviReloj** desde *Artifacts*.
+2. Instalá el APK **encima** del anterior (no hace falta desinstalar).
+3. Abrí NaviReloj y verificá que arriba diga:
+   - ✔ Acceso a notificaciones
+   - ✔ Conexión para el reloj
+
+   Si la segunda tiene ✖, tocá **1. Dar acceso a notificaciones**, desactivá NaviReloj y volvé a activarlo.
+4. En la app **Zepp**, desactivá las notificaciones de Google Maps (*Perfil → tu reloj → Alertas de apps*). Las de NaviReloj ya no hacen falta.
+
+---
+
+## Parte 2: app del reloj (una sola vez, desde la compu)
+
+### Lo que hay que instalar
+
+1. **Node.js** (versión LTS) desde [nodejs.org](https://nodejs.org). Instalalo con las opciones por defecto y reiniciá VS Code.
+2. En la terminal de VS Code (*Terminal → New Terminal*):
+   ```
+   npm install -g @zeppos/zeus-cli
+   ```
+
+### Cuenta de desarrollador de Zepp
+
+1. Creá una cuenta gratis en [console.zepp.com](https://console.zepp.com) (podés usar la misma cuenta de la app Zepp).
+2. En la terminal:
+   ```
+   zeus login
+   ```
+   Se abre el navegador para iniciar sesión.
+
+### Modo desarrollador en la app Zepp del celu
+
+En la app Zepp: *Perfil → Ajustes → Acerca de* y tocá **7 veces** el logo de Zepp. Después aparece **Modo desarrollador** en *Perfil → Ajustes*.
+
+### Instalar en el reloj
+
+1. Descargá el repo a tu compu (en GitHub: botón verde **Code → Download ZIP**) y descomprimilo. O usá la carpeta que ya tenés.
+2. En la terminal de VS Code, entrá a la carpeta `reloj`:
+   ```
+   cd ruta/a/NaviReloj/reloj
+   npm install
+   zeus preview
+   ```
+3. Te va a preguntar para qué reloj: elegí **Amazfit Active 3 Premium**. Si no aparece en la lista, elegí uno redondo de 466×466 (por ejemplo **Amazfit Active 2 (Round)**).
+4. Aparece un código **QR** en la terminal. En la app Zepp: *Perfil → Ajustes → Modo desarrollador → Escanear* y escanealo.
+5. La app se instala en el reloj. La vas a encontrar en la lista de apps como **NaviReloj**.
+
+---
+
+## Probar
+
+1. Abrí **NaviReloj en el reloj**. Tiene que decir "Iniciá una navegación en Google Maps".
+2. En **NaviReloj del celu**, tocá **Probar con el reloj (simulación de 1 minuto)**.
+3. En el reloj deberías ver las flechas cambiar, la distancia bajar y sentir las vibraciones.
+4. Después probá con una navegación real en Google Maps, con la app del reloj abierta.
+
+## Si algo no anda
+
+| En el reloj dice… | Qué revisar |
+|---|---|
+| "No encuentro NaviReloj en el celu" | Que la app del celu muestre ✔ en "Conexión para el reloj", que el reloj esté conectado a Zepp, y que Zepp esté abierta o en segundo plano. |
+| "Iniciá una navegación…" aunque Maps está navegando | Que NaviReloj tenga acceso a notificaciones y que las notificaciones de Google Maps no estén silenciadas en Android. |
+| La flecha no corresponde | Copiá el registro de diagnóstico de la app del celu y pasáselo a Claude para ajustar el filtro. |
+
+### Para modificar
+
+- Umbrales de vibración: `THRESHOLDS` en `app/src/main/java/com/navireloj/NavFilter.java`.
+- Cómo se interpreta el texto de Maps: `NavParser.java`.
+- Pantalla del reloj: `reloj/page/index.js`. Flechas: `reloj/assets/common.r/arrows/`.
+- Después de cambiar algo del reloj, volvé a correr `zeus preview` y escaneá el QR nuevo.

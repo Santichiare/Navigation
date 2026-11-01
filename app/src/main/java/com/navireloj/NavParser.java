@@ -47,6 +47,21 @@ public final class NavParser {
                 .trim();
     }
 
+    private static final Pattern STREET_AFTER = Pattern.compile(
+            "^.*?\\b(?:hacia|por|en dirección a|onto|toward|towards|on)\\s+(.+)$",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    /**
+     * Texto corto para el reloj: si la indicación es "Girá a la izquierda hacia
+     * Av. Corrientes", devuelve solo "Av. Corrientes" (la flecha ya dice el giro).
+     */
+    public static String shortInstruction(String instruction) {
+        String s = clean(instruction);
+        Matcher m = STREET_AFTER.matcher(s);
+        if (m.matches() && !m.group(1).trim().isEmpty()) return m.group(1).trim();
+        return s;
+    }
+
     /**
      * Identifica la maniobra actual. Cambia cuando Maps pasa a la
      * siguiente indicación, pero no cuando solo baja la distancia.
@@ -65,23 +80,60 @@ public final class NavParser {
         return Pattern.compile(regex).matcher(s).find();
     }
 
-    /** Flecha + palabra según la maniobra, o "" si no se reconoce. */
-    public static String direction(String rawText) {
+    /**
+     * Código de la maniobra: left, right, slight_left, slight_right, uturn,
+     * roundabout, exit, straight, arrive, o "" si no se reconoce.
+     * El reloj usa este código para elegir la flecha.
+     */
+    public static String dirCode(String rawText) {
         String s = normalize(rawText);
         boolean left = has(s, "izquierda|\\bleft\\b");
         boolean right = has(s, "derecha|\\bright\\b");
         boolean slight = has(s, "ligeramente|levemente|\\bslight|mantene|mantente|\\bkeep\\b");
 
-        if (has(s, "media vuelta|vuelta en u|cambio de sentido|u-turn|\\bu turn")) return "↩ VUELTA EN U";
-        if (has(s, "rotonda|roundabout")) return "↻ ROTONDA";
-        if (has(s, "destino|llegaste|llegada|\\barrive|destination")) return "◎ DESTINO";
-        if (slight && left) return "↖ IZQ.";
-        if (slight && right) return "↗ DER.";
-        if (left) return "← IZQUIERDA";
-        if (right) return "→ DERECHA";
-        if (has(s, "salida|\\bexit\\b")) return "↗ SALIDA";
-        if (has(s, "continua|segui|sigue|recto|\\bcontinue\\b|\\bhead\\b|\\bstraight\\b")) return "↑ SEGUÍ";
+        if (has(s, "media vuelta|vuelta en u|cambio de sentido|u-turn|\\bu turn")) return "uturn";
+        if (has(s, "rotonda|roundabout")) return "roundabout";
+        if (has(s, "destino|llegaste|llegada|\\barrive|destination")) return "arrive";
+        if (slight && left) return "slight_left";
+        if (slight && right) return "slight_right";
+        if (left) return "left";
+        if (right) return "right";
+        if (has(s, "salida|\\bexit\\b")) return "exit";
+        if (has(s, "continua|segui|sigue|recto|\\bcontinue\\b|\\bhead\\b|\\bstraight\\b")) return "straight";
         return "";
+    }
+
+    /** Texto corto para mostrar debajo de la flecha. */
+    public static String dirLabel(String code) {
+        switch (code) {
+            case "left": return "IZQUIERDA";
+            case "right": return "DERECHA";
+            case "slight_left": return "LEVE IZQ.";
+            case "slight_right": return "LEVE DER.";
+            case "uturn": return "VUELTA EN U";
+            case "roundabout": return "ROTONDA";
+            case "exit": return "SALIDA";
+            case "straight": return "SEGUÍ";
+            case "arrive": return "DESTINO";
+            default: return "";
+        }
+    }
+
+    /** Flecha + palabra (se usa en la pantalla de diagnóstico del celu). */
+    public static String direction(String rawText) {
+        String code = dirCode(rawText);
+        switch (code) {
+            case "left": return "← IZQUIERDA";
+            case "right": return "→ DERECHA";
+            case "slight_left": return "↖ IZQ.";
+            case "slight_right": return "↗ DER.";
+            case "uturn": return "↩ VUELTA EN U";
+            case "roundabout": return "↻ ROTONDA";
+            case "exit": return "↗ SALIDA";
+            case "straight": return "↑ SEGUÍ";
+            case "arrive": return "◎ DESTINO";
+            default: return "";
+        }
     }
 
     /** "200 m", "1,2 km". */

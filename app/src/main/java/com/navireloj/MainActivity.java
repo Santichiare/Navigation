@@ -1,10 +1,8 @@
 package com.navireloj;
 
 import android.app.Activity;
-import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.Typeface;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,6 +19,7 @@ public class MainActivity extends Activity {
     private TextView status;
     private TextView log;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean simulating = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,9 +37,10 @@ public class MainActivity extends Activity {
         col.addView(title);
 
         TextView intro = new TextView(this);
-        intro.setText("Manda al reloj solo las indicaciones importantes de Google Maps: "
-                + "cada maniobra nueva y a los 500 m, 200 m y 50 m.\n\n"
-                + "En la app Zepp: desactivá Google Maps en Alertas de apps y activá NaviReloj.");
+        intro.setText("Lee las indicaciones de Google Maps y se las pasa a la app NaviReloj "
+                + "del reloj, que muestra la flecha y la distancia en vivo.\n\n"
+                + "En la app Zepp, desactivá las notificaciones de Google Maps "
+                + "para que no te lleguen las de siempre.");
         intro.setPadding(0, dp(8), 0, dp(16));
         col.addView(intro);
 
@@ -52,20 +52,10 @@ public class MainActivity extends Activity {
         col.addView(button("1. Dar acceso a notificaciones", v ->
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
 
-        col.addView(button("2. Permitir que NaviReloj muestre avisos", v -> {
-            if (Build.VERSION.SDK_INT >= 33) {
-                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
-            } else {
-                Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                i.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
-                startActivity(i);
-            }
-        }));
-
-        col.addView(button("3. Quitar restricción de batería", v ->
+        col.addView(button("2. Quitar restricción de batería", v ->
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))));
 
-        col.addView(button("Probar en el reloj (simulación de 30 s)", v -> simulate()));
+        col.addView(button("Probar con el reloj (simulación de 1 minuto)", v -> simulate()));
 
         TextView logTitle = new TextView(this);
         logTitle.setText("\nÚltimos textos recibidos de Google Maps (diagnóstico):");
@@ -79,7 +69,7 @@ public class MainActivity extends Activity {
         log.setPadding(0, dp(8), 0, dp(8));
         col.addView(log);
 
-        col.addView(button("Actualizar registro", v -> refresh()));
+        col.addView(button("Actualizar", v -> refresh()));
         col.addView(button("Borrar registro", v -> {
             DebugLog.clear(this);
             refresh();
@@ -98,11 +88,12 @@ public class MainActivity extends Activity {
 
     private void refresh() {
         boolean listener = listenerEnabled();
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        boolean notifs = nm != null && nm.areNotificationsEnabled();
+        boolean server = NavServer.isRunning();
 
         status.setText((listener ? "✔" : "✖") + " Acceso a notificaciones\n"
-                + (notifs ? "✔" : "✖") + " Permiso para mostrar avisos");
+                + (server ? "✔" : "✖") + " Conexión para el reloj"
+                + (listener && !server ? "  (desactivá y volvé a activar el acceso)" : "")
+                + (simulating ? "\n▶ Simulación en curso…" : ""));
 
         String l = DebugLog.read(this);
         log.setText(l.isEmpty() ? "(todavía nada — iniciá una navegación en Google Maps)" : l);
@@ -113,9 +104,14 @@ public class MainActivity extends Activity {
         return flat != null && flat.contains(getPackageName());
     }
 
-    /** Simula una navegación con dos giros para ver cómo llega al reloj. */
+    /** Simula una navegación con dos giros para probar la app del reloj. */
     private void simulate() {
+        if (simulating) return;
+        simulating = true;
+        handler.removeCallbacksAndMessages(null);
+        NavServer.start();
         NavFilter.reset();
+
         final String[][] steps = {
                 {"600 m", "Girá a la izquierda hacia Av. Corrientes"},
                 {"550 m", "Girá a la izquierda hacia Av. Corrientes"},
@@ -127,18 +123,22 @@ public class MainActivity extends Activity {
                 {"1,2 km", "Girá a la derecha hacia Av. Callao"},
                 {"700 m", "Girá a la derecha hacia Av. Callao"},
                 {"450 m", "Girá a la derecha hacia Av. Callao"},
+                {"120 m", "En la rotonda, tomá la 2.ª salida"},
+                {"30 m", "Llegaste a destino"},
         };
         for (int i = 0; i < steps.length; i++) {
             final String[] s = steps[i];
             handler.postDelayed(() -> {
-                NavFilter.onMapsUpdate(this, s[0], s[1]);
+                NavFilter.onMapsUpdate(s[0], s[1], "Simulación");
                 refresh();
-            }, i * 3000L);
+            }, i * 5000L);
         }
         handler.postDelayed(() -> {
-            NavFilter.onNavEnded(this);
+            NavFilter.onNavEnded();
+            simulating = false;
             refresh();
-        }, steps.length * 3000L + 2000L);
+        }, steps.length * 5000L + 3000L);
+        refresh();
     }
 
     private Button button(String text, View.OnClickListener l) {

@@ -10,8 +10,8 @@ android {
         applicationId 'com.navireloj'
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName '0.1'
+        versionCode 3
+        versionName '0.3'
     }
 
     // Clave fija incluida en el proyecto, para que cada versión nueva

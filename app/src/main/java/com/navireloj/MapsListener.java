@@ -6,12 +6,23 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
 /**
- * Escucha las notificaciones del teléfono y le pasa al filtro
- * solo las de navegación de Google Maps.
+ * Escucha las notificaciones del teléfono, le pasa al filtro solo las de
+ * navegación de Google Maps, y mantiene encendido el servidor local que
+ * consulta el reloj.
  */
 public class MapsListener extends NotificationListenerService {
 
     static final String MAPS = "com.google.android.apps.maps";
+
+    @Override
+    public void onListenerConnected() {
+        NavServer.start();
+    }
+
+    @Override
+    public void onListenerDisconnected() {
+        NavServer.stop();
+    }
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
@@ -23,8 +34,12 @@ public class MapsListener extends NotificationListenerService {
         if (e == null) return;
         String title = str(e.getCharSequence(Notification.EXTRA_TITLE));
         String text = str(e.getCharSequence(Notification.EXTRA_TEXT));
+        String sub = str(e.getCharSequence(Notification.EXTRA_SUB_TEXT));
 
-        NavFilter.onMapsUpdate(this, title, text);
+        NavServer.start(); // por si el sistema lo cerró
+        if (NavFilter.onMapsUpdate(title, text, sub)) {
+            DebugLog.add(this, title + " | " + text + " | " + sub);
+        }
     }
 
     @Override
@@ -32,7 +47,8 @@ public class MapsListener extends NotificationListenerService {
         if (sbn == null || !MAPS.equals(sbn.getPackageName())) return;
         Notification n = sbn.getNotification();
         if (n != null && isNavigation(n)) {
-            NavFilter.onNavEnded(this);
+            NavFilter.onNavEnded();
+            DebugLog.add(this, "(navegación terminada)");
         }
     }
 
