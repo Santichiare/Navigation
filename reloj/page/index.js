@@ -2,7 +2,12 @@ import * as hmUI from "@zos/ui";
 import { px } from "@zos/utils";
 import { getDeviceInfo } from "@zos/device";
 import { Vibrator } from "@zos/sensor";
-import { setPageBrightTime } from "@zos/display";
+import {
+  setPageBrightTime,
+  pauseDropWristScreenOff,
+  resetDropWristScreenOff,
+  setWakeUpRelaunch,
+} from "@zos/display";
 import { BasePage } from "@zeppos/zml/base-page";
 
 const { width: W } = getDeviceInfo();
@@ -46,10 +51,16 @@ Page(
       inFlight: false,
       inFlightSince: 0,
       failures: 0,
+      keepingAwake: false,
     },
 
     build() {
       setPageBrightTime({ brightTime: BRIGHT_MS });
+      // Si la pantalla se llega a apagar, al despertar el reloj vuelve a esta app
+      // (por defecto Zepp OS cierra la app 10 s después de apagarse la pantalla).
+      try {
+        setWakeUpRelaunch({ relaunch: true });
+      } catch (e) {}
 
       // Línea superior: tiempo / distancia restante
       this.state.etaText = hmUI.createWidget(hmUI.widget.TEXT, {
@@ -155,9 +166,12 @@ Page(
     render(nav) {
       if (!nav.active) {
         this.state.lastSeq = nav.seq;
+        this.setKeepAwake(false);
         this.showMessage(MSG_IDLE);
         return;
       }
+
+      this.setKeepAwake(true);
 
       this.state.msgText.setProperty(hmUI.prop.VISIBLE, false);
       this.showArrow(nav.dir || "unknown");
@@ -170,6 +184,21 @@ Page(
         this.alert(nav.distText === "YA");
       }
       this.state.lastSeq = nav.seq;
+    },
+
+    // Mientras hay navegación, la pantalla no se apaga al bajar la muñeca.
+    // Sin navegación, el reloj vuelve a su comportamiento normal.
+    setKeepAwake(on) {
+      if (on === this.state.keepingAwake) return;
+      try {
+        if (on) {
+          pauseDropWristScreenOff({ duration: 0 });
+          setPageBrightTime({ brightTime: BRIGHT_MS });
+        } else {
+          resetDropWristScreenOff();
+        }
+        this.state.keepingAwake = on;
+      } catch (e) {}
     },
 
     showArrow(name) {
@@ -212,6 +241,7 @@ Page(
     },
 
     onDestroy() {
+      this.setKeepAwake(false);
       if (pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
