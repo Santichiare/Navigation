@@ -10,7 +10,7 @@
         android:allowBackup="true"
         android:icon="@android:drawable/ic_dialog_map"
         android:label="NaviReloj"
-        android:theme="@android:style/Theme.Material.Light">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
