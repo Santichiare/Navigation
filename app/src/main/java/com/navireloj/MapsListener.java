@@ -37,17 +37,39 @@ public class MapsListener extends NotificationListenerService {
         String text = str(e.getCharSequence(Notification.EXTRA_TEXT));
         String sub = str(e.getCharSequence(Notification.EXTRA_SUB_TEXT));
 
-        // Otros campos donde algunas versiones de Maps ponen la distancia
-        String extra = str(e.getCharSequence(Notification.EXTRA_BIG_TEXT))
+        // Distancia al próximo giro: en Samsung viene en los campos de las
+        // "Live notifications" (ongoingActivityNoti.primaryInfo = "200 m").
+        // Primero esos; después otros campos donde algunas versiones la ponen.
+        String extra = findByKeySuffix(e, "ongoingActivityNoti.primaryInfo")
+                + " " + findByKeySuffix(e, "ongoingActivityNoti.chipExpandedText")
+                + " " + findByKeySuffix(e, "ongoingActivityNoti.nowbarPrimaryInfo")
+                + " " + str(e.getCharSequence(Notification.EXTRA_BIG_TEXT))
                 + " " + str(e.getCharSequence(Notification.EXTRA_INFO_TEXT))
                 + " " + str(e.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
-                + " " + str(e.getCharSequence(Notification.EXTRA_TITLE_BIG))
                 + " " + str(n.tickerText);
 
+        // Distancia total del recorrido: barra de progreso (metros)
+        int progress = e.getInt(Notification.EXTRA_PROGRESS, -1);
+        int progressMax = e.getInt(Notification.EXTRA_PROGRESS_MAX, -1);
+
         NavServer.start(); // por si el sistema lo cerró
+        NavFilter.setProgress(progress, progressMax);
         if (NavFilter.onMapsUpdate(title, text, sub, extra)) {
             DebugLog.add(this, dumpAll(n, e));
         }
+    }
+
+    /** Valor de texto del primer campo cuya clave termina en el sufijo dado. */
+    private static String findByKeySuffix(Bundle e, String suffix) {
+        for (String key : e.keySet()) {
+            if (!key.endsWith(suffix)) continue;
+            try {
+                Object v = e.get(key);
+                if (v != null) return v.toString();
+            } catch (Exception ignored) {
+            }
+        }
+        return "";
     }
 
     /** Todos los campos de texto de la notificación, para diagnóstico. */

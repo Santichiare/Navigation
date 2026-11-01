@@ -57,6 +57,22 @@ public final class NavFilter {
     private static String instruction = "";
     private static String eta = "";
     private static int remaining = -1;
+    private static int progress = -1;
+    private static int progressMax = -1;
+
+    /** Barra de progreso de Maps: metros avanzados y metros totales del recorrido. */
+    public static synchronized void setProgress(int p, int max) {
+        progress = p;
+        progressMax = max;
+    }
+
+    /** Estados de Maps que no son una indicación ("Iniciando navegación…", "Redirigiendo..."). */
+    static boolean isTransient(String title) {
+        String t = NavParser.normalize(title);
+        return t.startsWith("iniciando navegacion") || t.startsWith("redirigiendo")
+                || t.startsWith("recalculando") || t.startsWith("starting navigation")
+                || t.startsWith("rerouting");
+    }
     private static long updatedAt = 0;
 
     /** Vuelve a empezar (por ejemplo, antes de una simulación). */
@@ -71,6 +87,8 @@ public final class NavFilter {
         instruction = "";
         eta = "";
         remaining = -1;
+        progress = -1;
+        progressMax = -1;
         updatedAt = System.currentTimeMillis();
     }
 
@@ -96,6 +114,7 @@ public final class NavFilter {
         String raw = title + " | " + text + " | " + sub + " | " + extra;
         if (raw.equals(lastRaw)) return false;
         lastRaw = raw;
+        if (isTransient(title)) return true; // se registra, pero no cambia nada
 
         String key = NavParser.stepKey(title, text);
         if (key.isEmpty()) return true;
@@ -174,8 +193,14 @@ public final class NavFilter {
 
     /** Estado actual en JSON, tal como lo lee el reloj. */
     public static synchronized String toJson() {
-        String distText = (dist >= 0 && dist <= 50) ? "YA" : NavParser.formatDistance(dist);
+        // "YA" solo para maniobras; para "seguí derecho" no tiene sentido
+        boolean now = dist >= 0 && dist <= 50 && !"straight".equals(dir);
+        String distText = now ? "YA" : NavParser.formatDistance(dist);
         long age = updatedAt == 0 ? -1 : System.currentTimeMillis() - updatedAt;
+        // Distancia al destino: del texto de llegada o, en Samsung, de la barra
+        // de progreso (metros totales menos metros avanzados), siempre al día.
+        int rem = remaining;
+        if (rem < 0 && active && progressMax > 0) rem = Math.max(0, progressMax - Math.max(progress, 0));
         return "{"
                 + "\"active\":" + active
                 + ",\"seq\":" + seq
@@ -185,8 +210,8 @@ public final class NavFilter {
                 + ",\"distText\":" + quote(distText)
                 + ",\"instruction\":" + quote(instruction)
                 + ",\"eta\":" + quote(eta)
-                + ",\"remaining\":" + remaining
-                + ",\"remainingText\":" + quote(NavParser.formatDistance(remaining))
+                + ",\"remaining\":" + rem
+                + ",\"remainingText\":" + quote(NavParser.formatDistance(rem))
                 + ",\"age\":" + age
                 + ",\"notify\":" + notifyEnabled
                 + ",\"vibrate\":" + vibrateEnabled

@@ -99,7 +99,7 @@ public final class NavParser {
         if (left) return "left";
         if (right) return "right";
         if (has(s, "salida|\\bexit\\b")) return "exit";
-        if (has(s, "continua|segui|sigue|recto|\\bcontinue\\b|\\bhead\\b|\\bstraight\\b")) return "straight";
+        if (has(s, "continua|segui|sigue|recto|dirigete|dirigite|\\bcontinue\\b|\\bhead\\b|\\bstraight\\b")) return "straight";
         return "";
     }
 
