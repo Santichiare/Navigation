@@ -32,6 +32,7 @@ public final class NavFilter {
     private static int dist = -1;
     private static String instruction = "";
     private static String eta = "";
+    private static int remaining = -1;
     private static long updatedAt = 0;
 
     /** Vuelve a empezar (por ejemplo, antes de una simulación). */
@@ -45,6 +46,7 @@ public final class NavFilter {
         dist = -1;
         instruction = "";
         eta = "";
+        remaining = -1;
         updatedAt = System.currentTimeMillis();
     }
 
@@ -113,6 +115,9 @@ public final class NavFilter {
                 ? fullInstruction
                 : NavParser.shortInstruction(fullInstruction);
         eta = sub;
+        // Distancia hasta el destino: suele venir junto a la hora de llegada
+        // ("12 min · 3,4 km · 23:45")
+        remaining = NavParser.parseMeters(sub);
         updatedAt = System.currentTimeMillis();
         if (alert) seq++;
         return true;
@@ -144,6 +149,8 @@ public final class NavFilter {
                 + ",\"distText\":" + quote(distText)
                 + ",\"instruction\":" + quote(instruction)
                 + ",\"eta\":" + quote(eta)
+                + ",\"remaining\":" + remaining
+                + ",\"remainingText\":" + quote(NavParser.formatDistance(remaining))
                 + ",\"age\":" + age
                 + "}";
     }
