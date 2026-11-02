@@ -70,7 +70,8 @@ public class MainActivity extends Activity {
     // vistas que se actualizan
     private TextView headerIcon, headerTitle, headerSub;
     private TextView notifIcon, notifStatus, battIcon, battStatus;
-    private TextView[] modeSeg, themeSeg;
+    private TextView[] modeSeg;
+    private TextView themeBtn;
     private TextView modeDesc, testBtn, logToggle, logText;
     private LinearLayout logBox;
 
@@ -113,6 +114,19 @@ public class MainActivity extends Activity {
         if (t.equals(themePref())) return;
         prefs().edit().putString("theme", t).apply();
         recreate();
+    }
+
+    private String themeSymbol() {
+        String t = themePref();
+        return "light".equals(t) ? "☀" : "dark".equals(t) ? "☾" : "◐";
+    }
+
+    private String themeName() {
+        return themeName(themePref());
+    }
+
+    private String themeName(String t) {
+        return "light".equals(t) ? "claro" : "dark".equals(t) ? "oscuro" : "automático";
     }
 
     @SuppressWarnings("deprecation")
@@ -182,12 +196,7 @@ public class MainActivity extends Activity {
         body.addView(vibCard);
         body.addView(gap(18));
 
-        // --- Apariencia ---
-        body.addView(sectionLabel("Apariencia"));
-        themeSeg = new TextView[3];
-        body.addView(segmented(new String[]{"Sistema", "Claro", "Oscuro"}, themeSeg, i ->
-                setTheme(i == 0 ? "system" : i == 1 ? "light" : "dark")));
-        body.addView(gap(26));
+        body.addView(gap(8));
 
         // --- Probar ---
         testBtn = text("Probar con el reloj", 16, c.onPrimary, true);
@@ -247,7 +256,23 @@ public class MainActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("NaviReloj", 26, c.headerText, true);
         top.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        top.addView(text(versionName(), 12, 0xCCFFFFFF, false));
+        TextView version = text(versionName(), 12, 0xCCFFFFFF, false);
+        version.setPadding(0, 0, dp(10), 0);
+        top.addView(version);
+
+        // Tema: un toque va rotando automático → claro → oscuro
+        themeBtn = text(themeSymbol(), 18, c.headerText, false);
+        themeBtn.setGravity(Gravity.CENTER);
+        themeBtn.setBackground(oval(c.headerChip));
+        themeBtn.setClickable(true);
+        themeBtn.setContentDescription("Tema: " + themeName());
+        themeBtn.setOnClickListener(v -> {
+            String t = themePref();
+            String next = "system".equals(t) ? "light" : "light".equals(t) ? "dark" : "system";
+            Toast.makeText(this, "Tema: " + themeName(next), Toast.LENGTH_SHORT).show();
+            setTheme(next);
+        });
+        top.addView(themeBtn, new LinearLayout.LayoutParams(dp(44), dp(44)));
         h.addView(top);
 
         LinearLayout chip = new LinearLayout(this);
@@ -304,8 +329,6 @@ public class MainActivity extends Activity {
                 ? "No se apaga al bajar la muñeca. A los 10 s baja el brillo y en cada aviso vuelve y vibra. Tapándola con la mano se apaga."
                 : "Se apaga sola a los pocos segundos o al bajar la muñeca. Mirás el reloj cuando querés (no avisa de los giros).");
 
-        String t = themePref();
-        selectSeg(themeSeg, "light".equals(t) ? 1 : "dark".equals(t) ? 2 : 0);
 
         testBtn.setText(simulating ? "Simulando… (1 min)" : "Probar con el reloj");
         testBtn.setAlpha(simulating ? 0.6f : 1f);
