@@ -4,6 +4,10 @@ import android.app.Notification;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.TextAppearanceSpan;
 
 /**
  * Escucha las notificaciones del teléfono, le pasa al filtro solo las de
@@ -83,7 +87,7 @@ public class MapsListener extends NotificationListenerService {
                 continue;
             }
             if (v instanceof CharSequence || v instanceof Number || v instanceof Boolean) {
-                String s = v.toString();
+                String s = v instanceof CharSequence ? withColors((CharSequence) v) : v.toString();
                 if (s.isEmpty()) continue;
                 if (b.length() > 0) b.append(" | ");
                 b.append(key.replace("android.", "")).append('=').append(s);
@@ -92,13 +96,50 @@ public class MapsListener extends NotificationListenerService {
                 if (arr.length == 0) continue;
                 if (b.length() > 0) b.append(" | ");
                 b.append(key.replace("android.", "")).append("=[");
-                for (int i = 0; i < arr.length; i++) b.append(i > 0 ? "; " : "").append(arr[i]);
+                for (int i = 0; i < arr.length; i++) b.append(i > 0 ? "; " : "").append(withColors(arr[i]));
                 b.append(']');
             }
         }
         if (n.tickerText != null) b.append(" | ticker=").append(n.tickerText);
         if (n.category != null) b.append(" | cat=").append(n.category);
+        if (n.color != 0) b.append(" | color=").append(hex(n.color));
         return b.toString();
+    }
+
+    /**
+     * Texto con los colores que trae marcados (ej. los minutos en rojo si hay
+     * tránsito): cada tramo coloreado se muestra como {#RRGGBB:texto}.
+     */
+    private static String withColors(CharSequence cs) {
+        if (cs == null) return "";
+        if (!(cs instanceof Spanned)) return cs.toString();
+        Spanned sp = (Spanned) cs;
+        Object[] spans = sp.getSpans(0, sp.length(), Object.class);
+        if (spans.length == 0) return cs.toString();
+        StringBuilder out = new StringBuilder(cs.toString());
+        StringBuilder marks = new StringBuilder();
+        for (Object span : spans) {
+            int start = sp.getSpanStart(span), end = sp.getSpanEnd(span);
+            if (start < 0 || end <= start) continue;
+            String part = cs.subSequence(start, end).toString();
+            String what;
+            if (span instanceof ForegroundColorSpan) {
+                what = hex(((ForegroundColorSpan) span).getForegroundColor());
+            } else if (span instanceof BackgroundColorSpan) {
+                what = "fondo " + hex(((BackgroundColorSpan) span).getBackgroundColor());
+            } else if (span instanceof TextAppearanceSpan
+                    && ((TextAppearanceSpan) span).getTextColor() != null) {
+                what = "estilo " + hex(((TextAppearanceSpan) span).getTextColor().getDefaultColor());
+            } else {
+                what = span.getClass().getSimpleName();
+            }
+            marks.append(" {").append(what).append(':').append(part).append('}');
+        }
+        return out.append(marks).toString();
+    }
+
+    private static String hex(int color) {
+        return String.format("#%06X", color & 0xFFFFFF);
     }
 
     @Override
