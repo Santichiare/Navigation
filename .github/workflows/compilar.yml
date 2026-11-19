@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,3 +32,17 @@ jobs:
         with:
           name: NaviReloj
           path: NaviReloj.apk
+
+      # Publica el APK como Release, así siempre se baja directo de:
+      # https://github.com/Santichiare/Navigation/releases/latest/download/NaviReloj.apk
+      - name: Publicar Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0-${{ github.run_number }}
+          name: NaviReloj 1.0 (compilación ${{ github.run_number }})
+          body: |
+            App del celular de NaviReloj. Descargá **NaviReloj.apk** e instalala encima de la anterior.
+            Cambios: ${{ github.event.head_commit.message }}
+          files: NaviReloj.apk
+          make_latest: true
